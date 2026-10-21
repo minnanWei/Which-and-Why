@@ -1,0 +1,16 @@
+{
+  "model_path": "models/Qwen3-14B",
+  "output_dir": "outputs/Qwen3-14B-LoRA",
+  "batch_size": 1,
+  "gradient_accumulation_steps": 24,
+  "max_length": 4096,
+  "learning_rate": 0.0001,
+  "r": 32,
+  "lora_alpha": 64,
+  "gradient_checkpointing": true,
+  "load_in_4bit": false,
+  "train_file": "dataset/train.jsonl",
+  "eval_file": "dataset/validation.jsonl",
+  "line_format": "numbers",
+  "eval_max_new_tokens": 1024
+}

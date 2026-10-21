@@ -1,0 +1,17 @@
+.venv/
+__pycache__/
+models/*/
+outputs/*/
+data/raw/*
+data/processed/*
+!**/.gitkeep
+*.log
+/dataset/
+*.safetensors
+*.bin
+*.pt
+*.pth
+*.ckpt
+.env
+.env.*
+!.env.example

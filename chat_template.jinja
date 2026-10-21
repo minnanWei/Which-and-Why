@@ -1,0 +1,14 @@
+{%- for message in messages %}
+    {%- if message['role'] == 'assistant' %}
+        {{- '<|im_start|>assistant\n<think>\n\n</think>\n\n' }}
+        {%- generation %}{{- message['content'] + '<|im_end|>' }}{%- endgeneration %}
+        {{- '\n' }}
+    {%- elif message['role'] in ['system', 'user'] %}
+        {{- '<|im_start|>' + message['role'] + '\n' + message['content'] + '<|im_end|>\n' }}
+    {%- else %}
+        {{- raise_exception('Only system/user/assistant text messages are supported') }}
+    {%- endif %}
+{%- endfor %}
+{%- if add_generation_prompt %}
+    {{- '<|im_start|>assistant\n<think>\n\n</think>\n\n' }}
+{%- endif %}
