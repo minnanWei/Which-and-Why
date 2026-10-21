@@ -6,7 +6,7 @@ data/raw/*
 data/processed/*
 !**/.gitkeep
 *.log
-/dataset/
+/dataset/*
 *.safetensors
 *.bin
 *.pt
@@ -15,3 +15,6 @@ data/processed/*
 .env
 .env.*
 !.env.example
+!/dataset/train.jsonl
+!/dataset/validation.jsonl
+!/dataset/test.jsonl
