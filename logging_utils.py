@@ -9,7 +9,7 @@ from transformers import TrainerCallback
 
 FIELDS = ['run_id', 'time_utc', 'step', 'epoch', 'loss', 'eval_loss', 'learning_rate', 'grad_norm',
           'eval_line_precision', 'eval_line_recall', 'eval_line_f1', 'eval_line_exact_match',
-          'eval_cwe_precision', 'eval_cwe_recall', 'eval_cwe_f1', 'eval_cwe_exact_match',
+          'eval_cwe_precision', 'eval_cwe_recall', 'eval_cwe_f1', 'eval_cwe_exact_match', 'eval_cwe_accuracy',
           'eval_joint_f1', 'eval_joint_exact_match', 'eval_format_valid_rate', 'eval_truncated_samples']
 
 

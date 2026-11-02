@@ -7,18 +7,20 @@ import shutil
 from dataclasses import asdict, dataclass, fields
 from pathlib import Path
 
-from data_utils import (ROOT, check_overlap, convert_records, project_path,
-                        read_records, tokenize_records)
+from data_utils import (ROOT, DATA_DIR, GroupRatioSampler, check_overlap, convert_records, project_path,
+                        read_records, tokenize_records, valid_records)
 
 
 @dataclass
 class TrainSettings:
     model_path: str = 'models/Qwen3-0.6B'
-    train_file: str = 'dataset/train.jsonl'
-    eval_file: str = 'dataset/validation.jsonl'
+    train_file: str = DATA_DIR + '/train.jsonl'
+    eval_file: str = DATA_DIR + '/validation.jsonl'
     output_dir: str = 'outputs/Qwen3-0.6B-LoRA'
-    line_format: str = 'numbers'
-    max_length: int = 4096
+    cwe_loss_weight: float = 3.0
+    evidence_loss_weight: float = 2.0
+    group_ratio: str = '5,3,1'
+    max_length: int = 16384
     long_policy: str = 'error'
     r: int = 32
     lora_alpha: int = 64
@@ -26,8 +28,8 @@ class TrainSettings:
     target_modules: str = 'all-linear'
     batch_size: int = 1
     eval_batch_size: int = 1
-    eval_max_new_tokens: int = 1024
-    gradient_accumulation_steps: int = 24
+    eval_max_new_tokens: int = 2048
+    gradient_accumulation_steps: int = 27
     num_train_epochs: float = 1.0
     max_steps: int = -1
     learning_rate: float = 2e-4
@@ -66,8 +68,15 @@ def parse_args():
 
 
 def validate(cfg):
-    if cfg.line_format not in ('code', 'numbers') or cfg.long_policy not in ('error', 'drop'):
-        raise ValueError('line_format=code/numbers; long_policy=error/drop')
+    if cfg.long_policy not in ('error', 'drop'):
+        raise ValueError('long_policy=error/drop')
+    ratio = [int(n) for n in cfg.group_ratio.split(',')]
+    if len(ratio) != 3 or min(ratio) < 1:
+        raise ValueError('group_ratio 需要三个正整数，例如 5,3,1')
+    if cfg.batch_size * cfg.gradient_accumulation_steps % sum(ratio):
+        raise ValueError('batch_size × gradient_accumulation_steps 必须是采样周期长度的整数倍；默认 1×27')
+    if cfg.cwe_loss_weight <= 0 or cfg.evidence_loss_weight <= 0:
+        raise ValueError('loss 权重必须大于 0')
     if cfg.dtype not in ('auto', 'bf16', 'fp16', 'fp32') or cfg.device not in ('auto', 'cpu'):
         raise ValueError('dtype=auto/bf16/fp16/fp32; device=auto/cpu')
     for name in ('r', 'lora_alpha', 'max_length', 'batch_size', 'eval_batch_size',
@@ -110,16 +119,29 @@ def main():
     if tokenizer.pad_token is None:
         tokenizer.pad_token = '<|endoftext|>'
     train_raw = read_records(project_path(cfg.train_file))
-    train_messages = convert_records(train_raw, cfg.line_format)
-    train_data, train_stats = tokenize_records(train_messages, tokenizer, cfg.max_length, cfg.long_policy)
+    train_valid, train_filter = valid_records(train_raw)
+    train_messages = convert_records(train_valid)
+    train_data, train_stats = tokenize_records(train_messages, tokenizer, cfg.max_length, cfg.long_policy,
+                                               cfg.cwe_loss_weight, cfg.evidence_loss_weight)
+    train_stats['teacher_filter'] = train_filter
+    group_ratio = tuple(int(n) for n in cfg.group_ratio.split(','))
+    train_stats['sampling'] = GroupRatioSampler(
+        [r['cwe_group'] for r in train_data], group_ratio, cfg.seed,
+        cfg.batch_size * cfg.gradient_accumulation_steps).statistics()
     eval_data, eval_stats = None, None
     if cfg.eval_file:
         eval_raw = read_records(project_path(cfg.eval_file))
         eval_data, eval_stats = prepare_eval_records(
-            eval_raw, tokenizer, cfg.line_format, cfg.max_length, cfg.eval_max_new_tokens, cfg.long_policy)
+            eval_raw, tokenizer, cfg.max_length, cfg.eval_max_new_tokens, cfg.long_policy)
         check_overlap(train_raw, eval_raw)
     stats = {'train': train_stats, 'validation': eval_stats}
-    print(json.dumps(stats, ensure_ascii=False, indent=2))
+    summary = {}
+    for name, values in stats.items():
+        if values is not None:
+            summary[name] = {k: v for k, v in values.items() if k not in ('teacher_filter', 'dropped_indices_1based')}
+            summary[name]['teacher_filter'] = {k: values['teacher_filter'][k] for k in ('raw_count', 'valid_count', 'invalid_count', 'valid_cwe_categories')}
+            summary[name]['dropped_for_length'] = len(values['dropped_indices_1based'])
+    print(json.dumps(summary, ensure_ascii=False, indent=2))
     if preflight:
         print('Preflight passed: training targets/masks and evidence-free validation prompts checked; no weights loaded.')
         return
@@ -130,7 +152,7 @@ def main():
     from transformers import AutoModelForCausalLM, BitsAndBytesConfig
     from transformers.trainer_utils import get_last_checkpoint
     from trl import SFTConfig
-    from task_trainer import TaskSFTTrainer
+    from task_trainer import TaskSFTTrainer, WeightedDataCollator
     from logging_utils import LossLoggerCallback
 
     set_seed(cfg.seed)
@@ -165,8 +187,9 @@ def main():
         if not previous.exists():
             raise ValueError('续训须使用原 output_dir（缺少 run_config.json）')
         old = json.loads(previous.read_text(encoding='utf-8'))
-        for key in ('model_path', 'train_file', 'eval_file', 'line_format', 'r', 'lora_alpha',
-                    'lora_dropout', 'target_modules', 'load_in_4bit', 'max_length', 'seed', 'eval_max_new_tokens'):
+        for key in ('model_path', 'train_file', 'eval_file', 'r', 'lora_alpha',
+                    'lora_dropout', 'target_modules', 'load_in_4bit', 'max_length', 'seed', 'eval_max_new_tokens',
+                    'cwe_loss_weight', 'evidence_loss_weight', 'group_ratio', 'batch_size', 'gradient_accumulation_steps'):
             if old.get(key, 1024 if key == 'eval_max_new_tokens' else None) != getattr(cfg, key):
                 raise ValueError(f'续训配置 {key} 与原训练不一致')
     is_main = int(os.environ.get('RANK', '0')) == 0
@@ -212,10 +235,12 @@ def main():
         gradient_checkpointing_kwargs={'use_reentrant': False},
         dataloader_num_workers=0, dataloader_pin_memory=not cpu,
         max_length=cfg.max_length, packing=False, assistant_only_loss=True,
+        remove_unused_columns=False,
         dataset_kwargs={'skip_prepare_dataset': True}, eos_token='<|im_end|>',
         ddp_find_unused_parameters=False,
     )
     trainer = TaskSFTTrainer(model=model, args=args, processing_class=tokenizer,
+                         data_collator=WeightedDataCollator(tokenizer), group_ratio=group_ratio,
                          eval_max_new_tokens=cfg.eval_max_new_tokens,
                          train_dataset=Dataset.from_list(train_data),
                          eval_dataset=Dataset.from_list(eval_data) if eval_data else None,

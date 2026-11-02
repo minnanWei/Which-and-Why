@@ -2,15 +2,17 @@
   "model_path": "models/Qwen3-8B",
   "output_dir": "outputs/Qwen3-8B-LoRA",
   "batch_size": 1,
-  "gradient_accumulation_steps": 24,
-  "max_length": 4096,
+  "gradient_accumulation_steps": 27,
+  "max_length": 16384,
   "learning_rate": 0.0001,
   "r": 32,
   "lora_alpha": 64,
   "gradient_checkpointing": true,
   "load_in_4bit": false,
-  "train_file": "dataset/train.jsonl",
-  "eval_file": "dataset/validation.jsonl",
-  "line_format": "numbers",
-  "eval_max_new_tokens": 1024
+  "train_file": "../dataset/dataresult/traindataset/train.jsonl",
+  "eval_file": "../dataset/dataresult/traindataset/validation.jsonl",
+  "eval_max_new_tokens": 2048,
+  "cwe_loss_weight": 3.0,
+  "evidence_loss_weight": 2.0,
+  "group_ratio": "5,3,1"
 }

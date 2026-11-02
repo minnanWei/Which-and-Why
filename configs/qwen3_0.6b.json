@@ -1,17 +1,16 @@
 {
   "model_path": "models/Qwen3-0.6B",
-  "train_file": "dataset/train.jsonl",
-  "eval_file": "dataset/validation.jsonl",
+  "train_file": "../dataset/dataresult/traindataset/train.jsonl",
+  "eval_file": "../dataset/dataresult/traindataset/validation.jsonl",
   "output_dir": "outputs/Qwen3-0.6B-LoRA",
-  "line_format": "numbers",
-  "max_length": 4096,
+  "max_length": 16384,
   "long_policy": "error",
   "r": 32,
   "lora_alpha": 64,
   "lora_dropout": 0.05,
   "target_modules": "all-linear",
   "batch_size": 1,
-  "gradient_accumulation_steps": 24,
+  "gradient_accumulation_steps": 27,
   "num_train_epochs": 1,
   "learning_rate": 0.0002,
   "logging_steps": 10,
@@ -20,5 +19,8 @@
   "gradient_checkpointing": true,
   "load_in_4bit": false,
   "dtype": "auto",
-  "eval_max_new_tokens": 1024
+  "eval_max_new_tokens": 2048,
+  "cwe_loss_weight": 3.0,
+  "evidence_loss_weight": 2.0,
+  "group_ratio": "5,3,1"
 }
