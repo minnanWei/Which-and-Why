@@ -1,24 +1,27 @@
 # Qwen3 LoRA：CWE 与证据行加权训练
 
-直接读取 ../dataset/dataresult/traindataset。Qwen3-0.6B、Qwen3-8B、Qwen3-14B 三个基座及对应 LoRA 结构不变，适配新的七字段 joint-evidence，新增字段加权损失和 head:middle:tail=5:3:1 训练调度。
+直接读取 dataset。Qwen3-0.6B、Qwen3-8B、Qwen3-14B 三个基座及对应 LoRA 结构不变，适配新的七字段 joint-evidence，新增字段加权损失和 head:middle:tail=5:3:1 训练调度。
 
-## 仓库与数据放置
+## 仓库与数据
 
-本仓库根目录对应本地的 train 目录。克隆代码：
+仓库已包含本次处理好的三个新数据集，克隆后直接使用仓库内路径：
 
     git clone https://github.com/minnanWei/Which-and-Why.git
     cd Which-and-Why
 
-将处理好的 train.jsonl、validation.jsonl、test.jsonl 放到仓库父目录下的 dataset/dataresult/traindataset/，默认相对路径即可使用。目录关系为：
+目录关系为：
 
-    工作目录/
-      Which-and-Why/                 本仓库代码
-      dataset/dataresult/traindataset/
-        train.jsonl
-        validation.jsonl
-        test.jsonl
+    Which-and-Why/
+      dataset/
+        train.jsonl          10,108 条
+        validation.jsonl      1,263 条
+        test.jsonl            1,264 条
+      configs/
+      train_lora.py
 
-数据位于其他位置时，用 --train-file 和 --eval-file 指定真实路径；独立测试用 --data-file。当前仓库只发布代码、配置和说明，数据集、基座权重和训练输出分别在运行环境中准备。
+三个模型配置默认读取 dataset/train.jsonl 和 dataset/validation.jsonl；最终测试默认读取 dataset/test.jsonl。文件与本地 traindataset 的原件一致，保留全部字段及无效教师记录；是否跳过无效教师由下述训练逻辑决定。基座权重和训练输出在运行环境中准备。
+
+自定义数据位置时，用 --train-file 和 --eval-file 指定路径；独立测试用 --data-file。
 
 ## 1. 环境、模型与启动
 
@@ -48,7 +51,7 @@
 
 ## 2. 新数据与过滤
 
-默认数据路径为 ../dataset/dataresult/traindataset 下的 train.jsonl、validation.jsonl 和 test.jsonl。不再读取 train/dataset 中的旧数据。
+默认读取仓库 dataset/ 下的三个新 JSONL 文件。
 
 新字段为 func、cwe_ids、cwe_group 和对象类型 joint-evidence。教师对象含 sample_valid、rejection_reason、evidence_lines、code_evidence、vulnerability_mechanism、cwe_rationale、final_cwe。
 
@@ -70,7 +73,7 @@
 
 预览转换：
 
-    python prepare_data.py --input ../dataset/dataresult/traindataset/train.jsonl --output data/processed/train_messages.jsonl
+    python prepare_data.py --input dataset/train.jsonl --output data/processed/train_messages.jsonl
 
 预览包含 messages、loss_spans 和 cwe_group，不是 --train-file 所需的原始格式。旧的 vulnerability lines / cweid 字符串协议及 --line-format 已移除。
 
@@ -130,7 +133,7 @@
 
 | 参数 | 默认值 |
 | --- | --- |
-| train_file / eval_file | traindataset 下的 train / validation |
+| train_file / eval_file | dataset 下的 train / validation |
 | cwe_loss_weight / evidence_loss_weight | 3.0 / 2.0 |
 | group_ratio | 5,3,1 |
 | gradient_accumulation_steps | 27 |
@@ -156,7 +159,7 @@
     python evaluate.py --model-path models/Qwen3-0.6B --adapter-path outputs/Qwen3-0.6B-LoRA/final_adapter --output-dir outputs/Qwen3-0.6B-LoRA/test_results
     python predict.py --model-path models/Qwen3-0.6B --adapter-path outputs/Qwen3-0.6B-LoRA/final_adapter --code-file data/raw/function_to_check.c
 
-最终测试默认使用 traindataset/test.jsonl 的 975 条有效教师记录，不参与 checkpoint 选择。8B/14B 替换对应路径。教师 sample_valid=false 意味着其证据不足，不能直接当作无漏洞负例。
+最终测试默认使用 dataset/test.jsonl 的 975 条有效教师记录，不参与 checkpoint 选择。8B/14B 替换对应路径。教师 sample_valid=false 意味着其证据不足，不能直接当作无漏洞负例。
 
 ## 7. 日志、续训及验证范围
 

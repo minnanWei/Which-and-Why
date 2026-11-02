@@ -9,7 +9,7 @@ import random
 import re
 
 ROOT = Path(__file__).resolve().parent
-DATA_DIR = '../dataset/dataresult/traindataset'
+DATA_DIR = 'dataset'
 SYSTEM_PROMPT = 'You are a software security analyst. Identify the single CWE and explain the code-level vulnerability using only the supplied function.'
 
 

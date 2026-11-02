@@ -1,7 +1,7 @@
 {
   "model_path": "models/Qwen3-0.6B",
-  "train_file": "../dataset/dataresult/traindataset/train.jsonl",
-  "eval_file": "../dataset/dataresult/traindataset/validation.jsonl",
+  "train_file": "dataset/train.jsonl",
+  "eval_file": "dataset/validation.jsonl",
   "output_dir": "outputs/Qwen3-0.6B-LoRA",
   "max_length": 16384,
   "long_policy": "error",

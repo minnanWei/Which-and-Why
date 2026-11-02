@@ -3,7 +3,10 @@ __pycache__/
 *.py[cod]
 /models/
 /outputs/
-/dataset/
+/dataset/*
+!/dataset/train.jsonl
+!/dataset/validation.jsonl
+!/dataset/test.jsonl
 /data/
 .env
 .env.*
